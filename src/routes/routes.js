@@ -34,6 +34,7 @@ function Drawer() {
       <NavigationStack.Screen name='CreatePoll' component={Screen.CreatePoll}/>
       <NavigationStack.Screen name='PageCreation' component={Screen.PageCreation}/>
       <NavigationStack.Screen name='ReelUpload' component={Screen.ReelUpload}/>
+      <NavigationStack.Screen name='ShortsUpload' component={Screen.ShortsUpload}/>
       <NavigationStack.Screen name='LocationPage' component={Screen.LocationPage}/>
       <NavigationStack.Screen name="ChatScreen" component={Screen.ChatScreen} />
       <NavigationStack.Screen name="MessageList" component={Screen.MessageList} />

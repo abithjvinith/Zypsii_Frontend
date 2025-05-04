@@ -467,5 +467,65 @@ const styles = StyleSheet.create({
     fontSize: scale(12),
     color: colors.fontThirdColor,
   },
+  shortsHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: verticalScale(15),
+    paddingRight: scale(15),
+  },
+  createButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.btncolor,
+    paddingHorizontal: scale(15),
+    paddingVertical: verticalScale(8),
+    borderRadius: scale(20),
+  },
+  createButtonText: {
+    color: '#fff',
+    marginLeft: scale(5),
+    fontSize: scale(14),
+    fontWeight: '600',
+  },
+  shortItemContainer: {
+    flexDirection: 'row',
+    backgroundColor: '#fff',
+    borderRadius: scale(10),
+    marginBottom: verticalScale(15),
+    marginRight: scale(15),
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+    elevation: 3,
+  },
+  shortThumbnail: {
+    width: scale(120),
+    height: scale(160),
+    borderTopLeftRadius: scale(10),
+    borderBottomLeftRadius: scale(10),
+  },
+  shortInfoContainer: {
+    flex: 1,
+    padding: scale(12),
+    justifyContent: 'space-between',
+  },
+  shortStatsContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: verticalScale(8),
+  },
+  shortStat: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  loadingMore: {
+    paddingVertical: verticalScale(10),
+    alignItems: 'center',
+  },
 })
 export default styles

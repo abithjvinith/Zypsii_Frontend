@@ -462,6 +462,10 @@ function MainLanding(props) {
         }
       });
 
+      if (!response.ok) {
+        throw new Error('Failed to fetch shorts');
+      }
+
       const data = await response.json();
       
       if (data.status) {
@@ -490,6 +494,50 @@ function MainLanding(props) {
       setAllShorts([]);
     } finally {
       setIsShortsLoading(false);
+    }
+  };
+
+  // Add pagination support
+  const loadMoreShorts = async () => {
+    if (isShortsLoading || !shortsPagination.hasNextPage) return;
+
+    try {
+      const accessToken = await AsyncStorage.getItem('accessToken');
+      const nextPage = shortsPagination.currentPage + 1;
+      
+      const response = await fetch(`${base_url}/shorts/listing?page=${nextPage}&limit=${shortsPagination.limit}`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${accessToken}`
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch more shorts');
+      }
+
+      const data = await response.json();
+      
+      if (data.status) {
+        const newShorts = data.data.map(short => ({
+          id: short._id,
+          title: short.title,
+          description: short.description,
+          videoUrl: short.videoUrl,
+          thumbnailUrl: short.thumbnailUrl,
+          createdBy: short.createdBy,
+          viewsCount: short.viewsCount || 0,
+          likesCount: short.likesCount || 0,
+          commentsCount: short.commentsCount || 0,
+          createdAt: short.createdAt,
+          updatedAt: short.updatedAt
+        }));
+        
+        setAllShorts(prevShorts => [...prevShorts, ...newShorts]);
+        setShortsPagination(data.pagination);
+      }
+    } catch (error) {
+      console.error('Error loading more shorts:', error);
     }
   };
 
@@ -531,9 +579,18 @@ function MainLanding(props) {
   // Render functions
   const renderVideoShorts = () => (
     <View style={styles.titleSpacer}>
-      <TextDefault textColor={colors.fontMainColor} H4>
-        {'Shorts'}
-      </TextDefault>
+      <View style={styles.shortsHeader}>
+        <TextDefault textColor={colors.fontMainColor} H4>
+          {'Shorts'}
+        </TextDefault>
+        <TouchableOpacity 
+          style={styles.createButton}
+          onPress={() => navigation.navigate('Drawer', { screen: 'ShortsUpload' })}
+        >
+          <MaterialIcons name="add" size={24} color="#fff" />
+          <Text style={styles.createButtonText}>Create</Text>
+        </TouchableOpacity>
+      </View>
       {isShortsLoading ? (
         <VerticalListLoader count={3} />
       ) : (
@@ -541,7 +598,10 @@ function MainLanding(props) {
           data={all_shorts}
           keyExtractor={(item) => item.id}
           renderItem={({ item }) => (
-            <View style={styles.shortItemContainer}>
+            <TouchableOpacity 
+              style={styles.shortItemContainer}
+              onPress={() => navigation.navigate('ShortDetail', { short: item })}
+            >
               <Image
                 source={{ uri: item.thumbnailUrl }}
                 style={styles.shortThumbnail}
@@ -550,7 +610,7 @@ function MainLanding(props) {
                 <TextDefault textColor={colors.fontMainColor} H5 bold>
                   {item.title}
                 </TextDefault>
-                <TextDefault textColor={colors.fontSecondColor} H6>
+                <TextDefault textColor={colors.fontSecondColor} H6 numberOfLines={2}>
                   {item.description}
                 </TextDefault>
                 <View style={styles.shortStatsContainer}>
@@ -574,9 +634,18 @@ function MainLanding(props) {
                   </View>
                 </View>
               </View>
-            </View>
+            </TouchableOpacity>
           )}
           contentContainerStyle={{ paddingBottom: 20 }}
+          onEndReached={loadMoreShorts}
+          onEndReachedThreshold={0.5}
+          ListFooterComponent={() => (
+            isShortsLoading && shortsPagination.hasNextPage ? (
+              <View style={styles.loadingMore}>
+                <ActivityIndicator size="small" color={colors.btncolor} />
+              </View>
+            ) : null
+          )}
         />
       )}
     </View>
