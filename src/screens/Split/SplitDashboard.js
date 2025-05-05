@@ -1,54 +1,51 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   FlatList,
   TouchableOpacity,
-  Image,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { colors } from '../../utils';
 import { useNavigation } from '@react-navigation/native';
 import { BottomTab } from '../../components';
-
-// Hardcoded split data
-const SPLIT_DATA = [
-  {
-    id: '1',
-    title: 'Weekend Trip',
-    totalAmount: 2500,
-    participants: 4,
-    date: '2024-04-20',
-    status: 'active',
-  },
-  {
-    id: '2',
-    title: 'Dinner Party',
-    totalAmount: 1200,
-    participants: 3,
-    date: '2024-04-15',
-    status: 'settled',
-  },
-  {
-    id: '3',
-    title: 'Movie Night',
-    totalAmount: 800,
-    participants: 2,
-    date: '2024-04-10',
-    status: 'active',
-  },
-];
+import axios from 'axios';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { base_url } from '../../utils/base_url';
 
 function SplitDashboard() {
   const navigation = useNavigation();
-  const [splits, setSplits] = useState(SPLIT_DATA);
+  const [splits, setSplits] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetchSplits();
+  }, []);
+
+  const fetchSplits = async () => {
+    try {
+      const accessToken = await AsyncStorage.getItem('accessToken');
+      const response = await axios.get(`${base_url}/api/splits`, {
+        headers: {
+          'Authorization': `Bearer ${accessToken}`
+        }
+      });
+      setSplits(response.data);
+      setLoading(false);
+    } catch (error) {
+      console.error('Error fetching splits:', error);
+      Alert.alert('Error', error.response?.data?.message || 'Failed to fetch splits');
+      setLoading(false);
+    }
+  };
 
   const renderSplitItem = ({ item }) => (
     <TouchableOpacity
       style={styles.splitCard}
-      onPress={() => navigation.navigate('SplitDetail', { splitId: item.id })}
+      onPress={() => navigation.navigate('SplitDetail', { splitId: item._id })}
     >
       <View style={styles.splitHeader}>
         <Text style={styles.splitTitle}>{item.title}</Text>
@@ -65,7 +62,7 @@ function SplitDashboard() {
       <View style={styles.splitDetails}>
         <View style={styles.detailItem}>
           <Ionicons name="people-outline" size={16} color={colors.fontThirdColor} />
-          <Text style={styles.detailText}>{item.participants} people</Text>
+          <Text style={styles.detailText}>{item.participants.length} people</Text>
         </View>
         <View style={styles.detailItem}>
           <Ionicons name="cash-outline" size={16} color={colors.fontThirdColor} />
@@ -73,7 +70,7 @@ function SplitDashboard() {
         </View>
         <View style={styles.detailItem}>
           <Ionicons name="calendar-outline" size={16} color={colors.fontThirdColor} />
-          <Text style={styles.detailText}>{item.date}</Text>
+          <Text style={styles.detailText}>{new Date(item.createdAt).toLocaleDateString()}</Text>
         </View>
       </View>
     </TouchableOpacity>
@@ -85,7 +82,7 @@ function SplitDashboard() {
         <Text style={styles.headerTitle}>Split Expenses</Text>
         <TouchableOpacity
           style={styles.addButton}
-          onPress={() => navigation.navigate('ExpenseCalculator')}
+          onPress={() => navigation.navigate('CreateSplit')}
         >
           <Ionicons name="add" size={24} color={colors.white} />
         </TouchableOpacity>
@@ -94,14 +91,14 @@ function SplitDashboard() {
       <FlatList
         data={splits}
         renderItem={renderSplitItem}
-        keyExtractor={(item) => item.id}
+        keyExtractor={(item) => item._id}
         contentContainerStyle={styles.listContainer}
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
             <Text style={styles.emptyText}>No splits created yet</Text>
             <TouchableOpacity
               style={styles.createButton}
-              onPress={() => navigation.navigate('ExpenseCalculator')}
+              onPress={() => navigation.navigate('CreateSplit')}
             >
               <Text style={styles.createButtonText}>Create New Split</Text>
             </TouchableOpacity>

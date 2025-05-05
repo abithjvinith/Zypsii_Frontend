@@ -11,6 +11,7 @@ import {
   Platform,
   KeyboardAvoidingView,
   Dimensions,
+  Linking,
 } from "react-native";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import MapView, { Marker } from "react-native-maps"; // MapView for location selection
@@ -106,6 +107,15 @@ function MakeSchedule() {
         return;
       }
 
+      // Ensure dates are valid Date objects
+      const startDate = new Date(fromDate);
+      const endDate = new Date(toDate);
+
+      if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
+        Alert.alert('Error', 'Invalid date format');
+        return;
+      }
+
       // Get location from first and last day's map coordinates
       const firstDay = days[0];
       const lastDay = days[days.length - 1];
@@ -150,7 +160,7 @@ function MakeSchedule() {
         }
         return {
           Description: day.description.trim(),
-          date: fromDate.toISOString().split('T')[0], // Format as YYYY-MM-DD
+          date: startDate.toISOString().split('T')[0], // Format as YYYY-MM-DD
           location: {
             latitude: parseFloat(day.latitude),
             longitude: parseFloat(day.longitude)
@@ -159,8 +169,6 @@ function MakeSchedule() {
       });
 
       // Calculate number of days between dates
-      const startDate = new Date(fromDate);
-      const endDate = new Date(toDate);
       const diffTime = Math.abs(endDate - startDate);
       const numberOfDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
 
@@ -185,8 +193,8 @@ function MakeSchedule() {
       formData.append('location[from][longitude]', locationData.from.longitude.toString());
       formData.append('location[to][latitude]', locationData.to.latitude.toString());
       formData.append('location[to][longitude]', locationData.to.longitude.toString());
-      formData.append('dates[from]', fromDate.toISOString().split('T')[0]);
-      formData.append('dates[end]', toDate.toISOString().split('T')[0]);
+      formData.append('dates[from]', startDate.toISOString().split('T')[0]);
+      formData.append('dates[end]', endDate.toISOString().split('T')[0]);
       formData.append('numberOfDays', numberOfDays.toString());
 
       // Optimize plan description data
@@ -340,35 +348,61 @@ function MakeSchedule() {
   }, [route.params]);
 
   const pickImage = async () => {
-    // Request permission first
-    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    
-    if (status !== 'granted') {
-      Alert.alert(
-        'Permission Required',
-        'Please grant permission to access your photos to select an image.',
-        [{ text: 'OK' }]
-      );
-      return;
-    }
+    try {
+      // Request permission first
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      
+      if (status !== 'granted') {
+        Alert.alert(
+          'Permission Required',
+          'Please grant permission to access your photos to select an image.',
+          [
+            {
+              text: 'Cancel',
+              style: 'cancel',
+            },
+            {
+              text: 'Open Settings',
+              onPress: () => {
+                if (Platform.OS === 'ios') {
+                  Linking.openURL('app-settings:');
+                } else {
+                  Linking.openSettings();
+                }
+              },
+            },
+          ]
+        );
+        return;
+      }
 
-    let result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true,
-      aspect: [4, 3],
-      quality: 0.5,
-      maxWidth: 1200,
-      maxHeight: 1200,
-      presentationStyle: ImagePicker.UIImagePickerPresentationStyle.FULL_SCREEN,
-      allowsMultipleSelection: false,
-      selectionLimit: 1,
-      base64: false,
-      exif: false,
-    });
+      let result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [4, 3],
+        quality: 0.7,
+        maxWidth: 1200,
+        maxHeight: 1200,
+        presentationStyle: ImagePicker.UIImagePickerPresentationStyle.FULL_SCREEN,
+        allowsMultipleSelection: false,
+        selectionLimit: 1,
+        base64: false,
+        exif: false,
+      });
 
-    if (!result.cancelled) {
+      if (result.canceled) {
+        return;
+      }
+
+      if (!result.assets || result.assets.length === 0) {
+        Alert.alert('Error', 'No image was selected');
+        return;
+      }
+
+      const selectedImage = result.assets[0];
+      
       // Check file size
-      const imageResponse = await fetch(result.uri);
+      const imageResponse = await fetch(selectedImage.uri);
       const blob = await imageResponse.blob();
       const fileSizeInMB = blob.size / (1024 * 1024);
       
@@ -381,7 +415,14 @@ function MakeSchedule() {
         return;
       }
 
-      updateScheduleState({ bannerImage: result.uri });
+      updateScheduleState({ bannerImage: selectedImage.uri });
+    } catch (error) {
+      console.error('Error picking image:', error);
+      Alert.alert(
+        'Error',
+        'Failed to select image. Please try again.',
+        [{ text: 'OK' }]
+      );
     }
   };
 

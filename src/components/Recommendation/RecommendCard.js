@@ -102,7 +102,7 @@ const DirectionIndicator = ({ duration, distance }) => {
 };
 
 // Nearby Places Card Component
-const RecommendedScheduleCard = ({ onSchedulePress }) => {
+const RecommendedScheduleCard = ({ onSchedulePress, title }) => {
     const scrollViewRef = useRef(null);
     const scrollX = useRef(new Animated.Value(0)).current;
     const currentIndex = useRef(0);
@@ -335,7 +335,7 @@ const RecommendedScheduleCard = ({ onSchedulePress }) => {
     return (
       <View style={styles.container}>
         <View style={styles.header}>
-          <Text style={styles.headerTitle}>Suggested Itineraries</Text>
+          <Text style={styles.headerTitle}>{title}</Text>
           <TouchableOpacity onPress={() => handleViewAll(suggestions[0])}>
             <Text style={styles.viewAllText}>View All</Text>
           </TouchableOpacity>
@@ -490,9 +490,9 @@ const styles = StyleSheet.create({
         marginBottom: 10,
     },
     headerTitle: {
-        fontSize: 16,
+        fontSize: 18,
         fontWeight: 'bold',
-        color: '#333',
+        color: colors.fontMainColor,
     },
     viewAllText: {
         fontSize: 14,

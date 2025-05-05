@@ -7,11 +7,15 @@ import {
   TouchableOpacity,
   ScrollView,
   Alert,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { colors } from '../../utils';
 import { useNavigation } from '@react-navigation/native';
+import axios from 'axios';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { base_url } from '../../utils/base_url';
 
 function CreateSplit() {
   const navigation = useNavigation();
@@ -19,25 +23,63 @@ function CreateSplit() {
   const [totalAmount, setTotalAmount] = useState('');
   const [participants, setParticipants] = useState('');
   const [date, setDate] = useState('');
+  const [loading, setLoading] = useState(false);
 
-  const handleCreateSplit = () => {
+  const handleCreateSplit = async () => {
     if (!title || !totalAmount || !participants || !date) {
       Alert.alert('Error', 'Please fill in all fields');
       return;
     }
 
-    // Create new split object
-    const newSplit = {
-      id: Date.now().toString(),
-      title,
-      totalAmount: parseFloat(totalAmount),
-      participants: parseInt(participants),
-      date,
-      status: 'active',
-    };
+    const accessToken = await AsyncStorage.getItem('accessToken');
+    setLoading(true);
+    try {
+      // Get user info from token
+      const userInfo = JSON.parse(await AsyncStorage.getItem('user'));
+      
+      if (!userInfo || !userInfo._id) {
+        throw new Error('User information not found');
+      }
 
-    // Navigate back to dashboard with new split
-    navigation.navigate('SplitDashboard', { newSplit });
+      // Calculate amount per participant
+      const amountPerPerson = parseFloat(totalAmount) / parseInt(participants);
+
+      // Create initial participants array with the creator
+      const initialParticipants = [{
+        user: {
+          _id: userInfo._id,
+          email: userInfo.email
+        },
+        amount: amountPerPerson,
+        paid: false
+      }];
+
+      const splitData = {
+        title,
+        totalAmount: parseFloat(totalAmount),
+        participants: initialParticipants
+      };
+
+      console.log('Creating split with data:', splitData);
+
+      const response = await axios.post(`${base_url}/api/splits`, splitData, {
+        headers: {
+          'Authorization': `Bearer ${accessToken}`
+        }
+      });
+
+      Alert.alert('Success', 'Split created successfully', [
+        {
+          text: 'OK',
+          onPress: () => navigation.navigate('SplitDashboard'),
+        },
+      ]);
+    } catch (error) {
+      console.error('Error creating split:', error);
+      Alert.alert('Error', error.message || error.response?.data?.message || 'Failed to create split');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -97,10 +139,15 @@ function CreateSplit() {
         </View>
 
         <TouchableOpacity
-          style={styles.createButton}
+          style={[styles.createButton, loading && styles.disabledButton]}
           onPress={handleCreateSplit}
+          disabled={loading}
         >
-          <Text style={styles.createButtonText}>Create Split</Text>
+          {loading ? (
+            <ActivityIndicator color={colors.white} />
+          ) : (
+            <Text style={styles.createButtonText}>Create Split</Text>
+          )}
         </TouchableOpacity>
       </ScrollView>
     </SafeAreaView>
@@ -160,6 +207,9 @@ const styles = StyleSheet.create({
     color: colors.white,
     fontSize: 16,
     fontWeight: 'bold',
+  },
+  disabledButton: {
+    opacity: 0.7,
   },
 });
 

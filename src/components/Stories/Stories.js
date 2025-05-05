@@ -134,16 +134,49 @@ const Stories = () => {
   };
 
   const uploadStory = async (imageAsset) => {
-    const storyData = {
-      title: "My Story", // Default title
-      description: "Check out my story!", // Default description
-      videoUrl: imageAsset.uri,
-      thumbnailUrl: imageAsset.uri,
-      tags: []
-    };
-    const accessToken = await AsyncStorage.getItem('accessToken');
-
     try {
+      const accessToken = await AsyncStorage.getItem('accessToken');
+      
+      // First upload the media file
+      const uploadFormData = new FormData();
+      const fileUri = imageAsset.uri.replace('file://', '');
+      
+      // Get file extension and set appropriate MIME type
+      const fileExtension = fileUri.split('.').pop().toLowerCase();
+      const mimeType = imageAsset.type === 'video' ? 'video/mp4' : 'image/jpeg';
+      
+      // Create file object for upload
+      uploadFormData.append('mediaFile', {
+        uri: imageAsset.uri,
+        type: mimeType,
+        name: `${imageAsset.type}.${fileExtension}`
+      });
+
+      // Upload the media file
+      const uploadResponse = await fetch(`${base_url}/uploadFile?mediaType=story`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Content-Type': 'multipart/form-data',
+        },
+        body: uploadFormData,
+      });
+
+      const uploadResponseData = await uploadResponse.json();
+
+      if (!uploadResponseData.status || !uploadResponseData.urls || !uploadResponseData.urls[0]) {
+        throw new Error('Failed to upload media file');
+      }
+
+      // Now create the story with the uploaded file URL
+      const storyData = {
+        title: "My Story", // Default title
+        description: "Check out my story!", // Default description
+        videoUrl: uploadResponseData.urls[0],
+        thumbnailUrl: uploadResponseData.urls[0],
+        tags: []
+      };
+
       const response = await fetch(`${base_url}/story/create`, {
         method: 'POST',
         headers: {
@@ -187,9 +220,11 @@ const Stories = () => {
         }
       } else {
         console.error('Failed to upload story:', data.message);
+        Alert.alert('Error', 'Failed to upload story. Please try again.');
       }
     } catch (error) {
       console.error('Error uploading story:', error);
+      Alert.alert('Error', 'Failed to upload story. Please try again.');
     }
   };
 

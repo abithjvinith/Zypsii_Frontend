@@ -8,6 +8,8 @@ import {
   Image,
   Alert,
   ScrollView,
+  ActivityIndicator,
+  Video,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -23,9 +25,11 @@ import ContentTypeModal from "../../components/ContentTypeModal/ContentTypeModal
 function ReelUpload() {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
-  const [image, setImage] = useState(null); // For storing the selected image
+  const [image, setImage] = useState(null);
   const [showContentTypeModal, setShowContentTypeModal] = useState(true);
   const [contentType, setContentType] = useState(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [mediaType, setMediaType] = useState('image'); // Add media type state
   const navigation = useNavigation();
 
   useEffect(() => {
@@ -48,7 +52,7 @@ function ReelUpload() {
 
   const pickImage = async () => {
     Alert.alert(
-      "Select Image",
+      "Select Media",
       "Choose an option",
       [
         {
@@ -72,112 +76,170 @@ function ReelUpload() {
     const permissionResult = await ImagePicker.requestCameraPermissionsAsync();
     if (permissionResult.granted) {
       const result = await ImagePicker.launchCameraAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        mediaTypes: contentType === 'post' ? ImagePicker.MediaTypeOptions.Images : ImagePicker.MediaTypeOptions.Videos,
         allowsEditing: true,
         aspect: [4, 3],
-        quality: 1,
+        quality: 0.7,
       });
 
       if (!result.canceled) {
         setImage(result.assets[0]);
+        // Set media type based on the selected file
+        setMediaType(result.assets[0].type === 'video' ? 'video' : 'image');
       }
     } else {
-      Alert.alert("Permission required", "You need to allow camera access to take photos.");
+      Alert.alert("Permission required", "You need to allow camera access to take photos/videos.");
     }
   };
 
   const openGallery = async () => {
-     const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
-     if (permissionResult.granted) {
-       const result = await ImagePicker.launchImageLibraryAsync({
-         mediaTypes: ImagePicker.MediaTypeOptions.Images,
-         allowsEditing: true,
-         aspect: [4, 3],
-         quality: 1,
-       });
- 
-       if (!result.canceled) {
-         setImage(result.assets[0]);
-       }
-     } else {
-       Alert.alert("Permission required", "You need to allow access to your photos to upload an image.");
-     }
-   };
+    const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (permissionResult.granted) {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: contentType === 'post' ? ImagePicker.MediaTypeOptions.Images : ImagePicker.MediaTypeOptions.Videos,
+        allowsEditing: true,
+        aspect: [4, 3],
+        quality: 0.7,
+      });
+
+      if (!result.canceled) {
+        setImage(result.assets[0]);
+        // Set media type based on the selected file
+        setMediaType(result.assets[0].type === 'video' ? 'video' : 'image');
+      }
+    } else {
+      Alert.alert("Permission required", "You need to allow access to your media library.");
+    }
+  };
 
   // Function to handle form submission
   const handleSubmit = async () => {
     if (!image) {
-      Alert.alert("Error", "Please select an image to upload.");
+      Alert.alert("Error", "Please select a media file to upload.");
       return;
     }
   
-    const formData = new FormData();
-    formData.append('postTitle', title);
-    formData.append('postType', 'Public'); // Default to Public
-    formData.append('mediaType', 'image');
-    
-    // Convert local file URI to proper URL format
-    const imageUri = image.uri.replace('file://', '');
-    formData.append('mediaUrl[]',imageUri)
-    formData.append('tags[]', 'new');
-    
     try {
+      setIsLoading(true);
       const accessToken = await AsyncStorage.getItem('accessToken');
 
       if (!accessToken) {
         Alert.alert("Error", "You need to be logged in to submit.");
+        setIsLoading(false);
         return;
       }
 
-      const response = await fetch(`${base_url}/post/create`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${accessToken}`,
-          'Content-Type': 'multipart/form-data',
-        },
-        body: formData,
+      // First upload the media file
+      const uploadFormData = new FormData();
+      const fileUri = image.uri.replace('file://', '');
+      
+      // Get file extension and set appropriate MIME type
+      const fileExtension = fileUri.split('.').pop().toLowerCase();
+      let mimeType = mediaType === 'video' ? 'video/mp4' : 'image/jpeg';
+      
+      if (mediaType === 'image') {
+        if (fileExtension === 'png') {
+          mimeType = 'image/png';
+        } else if (fileExtension === 'gif') {
+          mimeType = 'image/gif';
+        } else if (fileExtension === 'webp') {
+          mimeType = 'image/webp';
+        }
+      } else if (mediaType === 'video') {
+        if (fileExtension === 'mov') {
+          mimeType = 'video/quicktime';
+        } else if (fileExtension === 'avi') {
+          mimeType = 'video/x-msvideo';
+        }
+      }
+
+      // Create file object for upload
+      uploadFormData.append('mediaFile', {
+        uri: image.uri,
+        type: mimeType,
+        name: `${mediaType}.${fileExtension}`
       });
 
-      console.log('Response status:', response.status);
-      const responseData = await response.json();
-      console.log('Response data:', responseData);
-
-      if (response.ok) {
-        console.log("Post created:", responseData);
-        
-        // Send notification to followers
-        const followersResponse = await fetch(`${base_url}/user/followers`, {
+      try {
+        const uploadResponse = await fetch(`${base_url}/uploadFile?mediaType=${contentType}`, {
+          method: 'POST',
           headers: {
             'Authorization': `Bearer ${accessToken}`,
+            'Content-Type': 'multipart/form-data',
           },
+          body: uploadFormData,
         });
-        
-        if (followersResponse.ok) {
-          const followers = await followersResponse.json();
-          followers.forEach(async (follower) => {
-            if (follower.expoPushToken) {
-              await NotificationService.sendReelNotification(user.fullName, follower.expoPushToken);
-            }
-          });
+
+        if (uploadResponse.status === 413) {
+          Alert.alert("Error", "The file is too large. Please try uploading a smaller file.");
+          setIsLoading(false);
+          return;
         }
 
-        Alert.alert("Success", "Your post was successfully created!");
-        navigation.goBack();
-      } else {
-        console.error("Error creating post:", responseData);
-        Alert.alert("Error", responseData.message || "There was an error creating your post.");
+        let uploadResponseData;
+        try {
+          const responseText = await uploadResponse.text();
+          uploadResponseData = JSON.parse(responseText);
+        } catch (error) {
+          console.error('Error parsing response:', error);
+          Alert.alert("Error", "Failed to process the upload response. Please try again.");
+          setIsLoading(false);
+          return;
+        }
+
+        if (!uploadResponseData.status) {
+          Alert.alert("Error", uploadResponseData.message || "Failed to upload file");
+          setIsLoading(false);
+          return;
+        }
+
+        if (!uploadResponseData.urls || !uploadResponseData.urls[0]) {
+          Alert.alert("Error", "No file URL returned from upload");
+          setIsLoading(false);
+          return;
+        }
+
+        // Now create the post with the uploaded file URL
+        const postFormData = new FormData();
+        postFormData.append('postTitle', title);
+        postFormData.append('postType', 'Public');
+        postFormData.append('mediaType', mediaType);
+        postFormData.append('mediaUrl[]', uploadResponseData.urls[0]);
+        postFormData.append('tags[]', 'new');
+
+        const response = await fetch(`${base_url}/post/create`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'Content-Type': 'multipart/form-data',
+          },
+          body: postFormData,
+        });
+
+        const responseData = await response.json();
+
+        if (response.ok) {
+          Alert.alert("Success", "Your post was successfully created!");
+          navigation.goBack();
+        } else {
+          console.error("Error creating post. Status:", response.status);
+          console.error("Error response data:", responseData);
+          Alert.alert("Error", responseData.message || "There was an error creating your post.");
+        }
+      } catch (error) {
+        console.error("Network error:", error);
+        Alert.alert(
+          "Network Error",
+          "Please check your internet connection and try again. If the problem persists, try uploading a smaller file."
+        );
       }
     } catch (error) {
       console.error("Error in creating post:", error);
-      console.error("Error details:", {
-        message: error.message,
-        stack: error.stack,
-        name: error.name
-      });
-      Alert.alert("Error", "There was an error creating your post. Please check your internet connection and try again.");
+      Alert.alert("Error", "There was an error creating your post. Please try again.");
+    } finally {
+      setIsLoading(false);
     }
   };
-  
 
   // Function to test notifications
   const testNotification = async () => {
@@ -221,20 +283,34 @@ function ReelUpload() {
 
       {contentType && (
         <ScrollView>
-          {/* Image Selection Section */}
+          {/* Media Selection Section */}
           <TouchableOpacity 
             style={styles.imageContainer} 
             onPress={pickImage}
           >
             {image ? (
-              <Image 
-                source={{ uri: image.uri }} 
-                style={styles.selectedImage} 
-              />
+              mediaType === 'video' ? (
+                <Video
+                  source={{ uri: image.uri }}
+                  style={styles.selectedImage}
+                  resizeMode="cover"
+                />
+              ) : (
+                <Image 
+                  source={{ uri: image.uri }} 
+                  style={styles.selectedImage} 
+                />
+              )
             ) : (
               <View style={styles.placeholderContainer}>
-                <Ionicons name="camera" size={50} color={colors.btncolor} />
-                <Text style={styles.placeholderText}>Tap to add photo</Text>
+                <Ionicons 
+                  name={contentType === 'post' ? "camera" : "videocam"} 
+                  size={50} 
+                  color={colors.btncolor} 
+                />
+                <Text style={styles.placeholderText}>
+                  Tap to add {contentType === 'post' ? 'photo' : 'video'}
+                </Text>
               </View>
             )}
           </TouchableOpacity>
@@ -265,10 +341,15 @@ function ReelUpload() {
 
           {/* Submit Button */}
           <TouchableOpacity 
-            style={styles.submitButton} 
+            style={[styles.submitButton, isLoading && styles.submitButtonDisabled]} 
             onPress={handleSubmit}
+            disabled={isLoading}
           >
-            <Text style={styles.submitButtonText}>Share</Text>
+            {isLoading ? (
+              <ActivityIndicator color="#fff" />
+            ) : (
+              <Text style={styles.submitButtonText}>Share</Text>
+            )}
           </TouchableOpacity>
         </ScrollView>
       )}

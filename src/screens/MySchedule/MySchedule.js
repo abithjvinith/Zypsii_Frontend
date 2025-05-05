@@ -14,63 +14,88 @@ function MySchedule({ navigation }) {
   const today = new Date();
   const [selectedDate, setSelectedDate] = useState(null);
   const [all_schedule, setAll_schedule] = useState([]);
-  const [isLoading, setIsLoading] = useState(true); // Add loading state
+  const [isLoading, setIsLoading] = useState(true);
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(true);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const limit = 20;
 
-  // Fetch all schedule data
-  useEffect(() => {
-    const fetch_all_schedule = async () => {
-      setIsLoading(true); // Set loading to true when starting fetch
-      const accessToken = await AsyncStorage.getItem('accessToken');
-      console.log(accessToken);
-      try {
-        const response = await fetch(`${base_url}/schedule/listing/filter`, {
-          method: 'get',
-          headers: {
-            'Authorization': `Bearer ${accessToken}`,
-          },
-        }); 
-        const data = await response.json();
-        if (data.success && data.data) {
-          const formattedData = data.data.map((item) => {
-            const fromDate = new Date(item.Dates.from);
-            const endDate = new Date(item.Dates.end);
-            const createdAt = new Date(item.createdAt);
-            
-            return {
-              id: item._id,
-              title: item.tripName,
-              from: item.locationDetails?.[0]?.address || 'Unknown location',
-              to: item.locationDetails?.[1]?.address || 'Unknown location',
-              date: fromDate.toISOString().split('T')[0],
-              endDate: endDate.toISOString().split('T')[0],
-              travelMode: item.travelMode,
-              visible: item.visible,
-              numberOfDays: item.numberOfDays.toString(),
-              imageUrl: item.bannerImage,
-              locationDetails: item.locationDetails,
-              createdAt: createdAt.toISOString().split('T')[0],
-              rawLocation: {
-                from: {
-                  latitude: item.location.from.latitude,
-                  longitude: item.location.from.longitude
-                },
-                to: {
-                  latitude: item.location.to.latitude,
-                  longitude: item.location.to.longitude
-                }
+  // Fetch schedule data with pagination
+  const fetch_all_schedule = async (pageNum = 1, isLoadMore = false) => {
+    if (isLoadMore) {
+      setIsLoadingMore(true);
+    } else {
+      setIsLoading(true);
+    }
+    
+    const accessToken = await AsyncStorage.getItem('accessToken');
+    try {
+      const response = await fetch(`${base_url}/schedule/listing/filter?page=${pageNum}&limit=${limit}`, {
+        method: 'get',
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+        },
+      }); 
+      const data = await response.json();
+      if (data.success && data.data) {
+        const formattedData = data.data.map((item) => {
+          const fromDate = new Date(item.Dates.from);
+          const endDate = new Date(item.Dates.end);
+          const createdAt = new Date(item.createdAt);
+          
+          return {
+            id: item._id,
+            title: item.tripName,
+            from: item.locationDetails?.[0]?.address || 'Unknown location',
+            to: item.locationDetails?.[1]?.address || 'Unknown location',
+            date: fromDate.toISOString().split('T')[0],
+            endDate: endDate.toISOString().split('T')[0],
+            travelMode: item.travelMode,
+            visible: item.visible,
+            numberOfDays: item.numberOfDays.toString(),
+            imageUrl: item.bannerImage,
+            locationDetails: item.locationDetails,
+            createdAt: createdAt.toISOString().split('T')[0],
+            rawLocation: {
+              from: {
+                latitude: item.location.from.latitude,
+                longitude: item.location.from.longitude
+              },
+              to: {
+                latitude: item.location.to.latitude,
+                longitude: item.location.to.longitude
               }
-            };
-          });
+            }
+          };
+        });
+
+        if (isLoadMore) {
+          setAll_schedule(prev => [...prev, ...formattedData]);
+        } else {
           setAll_schedule(formattedData);
         }
-      } catch (error) {
-        console.error('Error fetching data:', error);
-      } finally {
-        setIsLoading(false); // Set loading to false when fetch completes
+
+        setHasMore(formattedData.length === limit);
       }
-    };
-    fetch_all_schedule();
+    } catch (error) {
+      console.error('Error fetching data:', error);
+    } finally {
+      setIsLoading(false);
+      setIsLoadingMore(false);
+    }
+  };
+
+  useEffect(() => {
+    fetch_all_schedule(1);
   }, []);
+
+  const loadMore = () => {
+    if (!isLoadingMore && hasMore) {
+      const nextPage = page + 1;
+      setPage(nextPage);
+      fetch_all_schedule(nextPage, true);
+    }
+  };
 
   // Helper function to generate dates for the current month
   const getDatesForMonth = (year, month) => {
@@ -195,6 +220,8 @@ function MySchedule({ navigation }) {
               keyExtractor={(item) => item.id.toString()} 
               data={filteredSchedules}
               renderItem={({ item }) => <Schedule item={item} />}
+              onEndReached={loadMore}
+              onEndReachedThreshold={0.5}
               ListEmptyComponent={
                 <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', paddingTop: 20 }}>
                   <Text style={{ color: '#666', fontSize: 16 }}>
@@ -202,6 +229,13 @@ function MySchedule({ navigation }) {
                   </Text>
                 </View>
               }
+              ListFooterComponent={() => (
+                isLoadingMore ? (
+                  <View style={{ paddingVertical: 20 }}>
+                    <ActivityIndicator size="small" color="#0000ff" />
+                  </View>
+                ) : null
+              )}
             />
           )}
         </View>

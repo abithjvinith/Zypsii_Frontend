@@ -38,9 +38,11 @@ import { useStatusBar } from '../../utils/useStatusBar';
 import ChatSupport from '../../components/ChatSupport/ChatSupport';
 import FloatingSupportButton from '../../components/FloatingChatButton/FloatingChatButton';
 import AllSchedule from '../MySchedule/Schedule/AllSchedule';
+import RecommendCard from '../../components/Recommendation/RecommendCard';
 
 
-function MainLanding(props) {
+
+function MainLanding(props) { 
   const navigation = useNavigation();
   const { scheduleData } = useSchedule();
   const [selectedButton, setSelectedButton] = useState('All');
@@ -707,7 +709,10 @@ function MainLanding(props) {
 
   const renderDiscoverByInterest = () => (
     <View style={styles.titleSpaceredge}>
-      <TextDefault textColor={colors.fontMainColor} H5 bold style={styles.titleSpacer}>
+
+
+<RecommendCard  title="Itineraries Suggested by Interest" />
+      {/* <TextDefault textColor={colors.fontMainColor} H5 bold style={styles.titleSpacer}>
         {'Discover by Interest'}
       </TextDefault>
       <View style={styles.seeAllTextContainer}>
@@ -733,7 +738,9 @@ function MainLanding(props) {
             />
           )}
         />
-      )}
+      )} */}
+
+    
     </View>
   );
 
